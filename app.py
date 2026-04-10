@@ -433,4 +433,17 @@ def run_flask():
 threading.Thread(target=run_flask).start()
 
 if __name__ == "__main__":
+async def premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "✨ *Премиум-доступ* ✨\n\n"
+        "💰 Стоимость: *199 рублей* (единоразово)\n\n"
+        "Что вы получите:\n"
+        "✅ *Безлимит идей* подарков\n"
+        "✅ *Фильтр по бюджету* (бюджетный, средний, премиум)\n"
+        "✅ *Сохранение понравившихся идей*\n\n"
+        "Скоро оплата будет доступна через ЮKassa. Следите за обновлениями!\n\n"
+        "Спасибо, что интересуетесь! 🎁",
+        parse_mode="Markdown"
+    )    
     main()
+        application.add_handler(CommandHandler("premium", premium))
