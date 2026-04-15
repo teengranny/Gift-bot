@@ -108,7 +108,7 @@ def get_random_gift(category: str) -> dict:
 def format_gift_message(gift: dict) -> str:
     price_label = PRICE_LABELS.get(gift.get("priceType", ""), "")
     price_line = f"💰 Стоимость: {price_label}\n" if price_label else ""
-    return f"{gift['emoji']} *{gift['title']}*\n{price_line}\n{gift['description']}\n\n[🛒 Перейти к товару]({gift['ozonLink']})"
+    return f"{gift['emoji']} *{gift['title']}*\n{price_line}\n{gift['description']}\n\n[Купить →]({gift['ozonLink']})"
 
 def build_category_keyboard() -> InlineKeyboardMarkup:
     buttons = [[InlineKeyboardButton(label, callback_data=f"cat:{key}")] for key, label in CATEGORIES.items()]
