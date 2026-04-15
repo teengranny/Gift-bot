@@ -45,8 +45,8 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ============================================================
 GIFTS_DB = {
     "man": [
-        {"title": "Умные часы с функцией мониторинга здоровья", "emoji": "⌚", "priceType": "premium", "description": "Подойдут для отслеживания физической активности и контроля показателей здоровья — полезно для тех, кто ведёт активный образ жизни.", "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
-        {"title": "Набор инструментов в кейсе", "emoji": "🔧", "priceType": "middle", "description": "Практичный подарок для домашнего мастера — поможет справиться с бытовыми задачами и организовать хранение мелочей.", "https://takprdm.ru/0W944W82VmChQ0C0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F49844802%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
+        {"title": "Умные часы с функцией мониторинга здоровья", "emoji": "⌚", "priceType": "premium", "description": "Подойдут для отслеживания физической активности и контроля показателей здоровья — полезно для тех, кто ведёт активный образ жизни.", "ozonLink": "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
+        {"title": "Набор инструментов в кейсе", "emoji": "🔧", "priceType": "middle", "description": "Практичный подарок для домашнего мастера — поможет справиться с бытовыми задачами и организовать хранение мелочей.", "ozonLink": "https://takprdm.ru/0W944W82VmChQ0C0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F49844802%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Термокружка с подогревом от USB", "emoji": "🥤", "priceType": "budget", "description": "Удобна в дороге и на работе — позволяет наслаждаться горячим напитком в любое время.", "ozonLink": "https://ozon.ru/click/usb_heated_mug"},
         {"title": "Беспроводные наушники с шумоподавлением", "emoji": "🎧", "priceType": "middle", "description": "Идеальны для прослушивания музыки и разговоров — обеспечат комфорт в транспорте и офисе.", "ozonLink": "https://ozon.ru/click/wireless_noise_cancelling"},
         {"title": "Кожаный портфель для документов", "emoji": "💼", "priceType": "premium", "description": "Стильный аксессуар для делового человека — подчеркнёт статус и поможет организовать рабочие материалы.", "ozonLink": "https://ozon.ru/click/leather_briefcase"},
@@ -77,7 +77,7 @@ GIFTS_DB = {
     "colleague": [
         {"title": "Беспроводная зарядная станция", "emoji": "🔋", "priceType": "middle", "description": "Упростит зарядку гаджетов на рабочем месте — сэкономит время и освободит пространство от проводов.", "ozonLink": "https://ozon.ru/click/wireless_charging_station"},
         {"title": "Ежедневник с персонализированной обложкой", "emoji": "📓", "priceType": "budget", "description": "Поможет организовать рабочий график — практичный инструмент для планирования задач.", "ozonLink": "https://ozon.ru/click/personalized_notebook"},
-        {"title": "Кружка‑хамелеон", "emoji": "☕", "priceType": "budget", "description": "Добавит позитива в перерывы на кофе — меняет цвет при нагревании, поднимает настроение.", "https://takprdm.ru/0W944W82VmCiLsm0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F15462468%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
+        {"title": "Кружка‑хамелеон", "emoji": "☕", "priceType": "budget", "description": "Добавит позитива в перерывы на кофе — меняет цвет при нагревании, поднимает настроение.", "ozonLink": "https://takprdm.ru/0W944W82VmCiLsm0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F15462468%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Набор качественных ручек и маркеров", "emoji": "✒️", "priceType": "budget", "description": "Пригодится для работы с документами — надёжный инструмент для заметок и презентаций.", "ozonLink": "https://ozon.ru/click/premium_pens_set"},
         {"title": "Мини‑увлажнитель воздуха для рабочего стола", "emoji": "💨", "priceType": "middle", "description": "Улучшит микроклимат в офисе — поможет сохранить комфорт в течение дня.", "ozonLink": "https://ozon.ru/click/desktop_humidifier"},
         {"title": "Подставка для ног эргономичной формы", "emoji": "🦶", "priceType": "middle", "description": "Снизит нагрузку при долгой работе за компьютером — повысит комфорт и заботу о здоровье.", "ozonLink": "https://ozon.ru/click/foot_rest_ergonomic"},
@@ -108,7 +108,7 @@ def get_random_gift(category: str) -> dict:
 def format_gift_message(gift: dict) -> str:
     price_label = PRICE_LABELS.get(gift.get("priceType", ""), "")
     price_line = f"💰 Стоимость: {price_label}\n" if price_label else ""
-return f"{gift['emoji']} *{gift['title']}*\n{price_line}\n{gift['description']}\n\n[🛒 Перейти к товару]({gift['ozonLink']})"
+    return f"{gift['emoji']} *{gift['title']}*\n{price_line}\n{gift['description']}\n\n[🛒 Перейти к товару]({gift['ozonLink']})"
 
 def build_category_keyboard() -> InlineKeyboardMarkup:
     buttons = [[InlineKeyboardButton(label, callback_data=f"cat:{key}")] for key, label in CATEGORIES.items()]
@@ -141,7 +141,7 @@ async def premium(update: Update, context) -> None:
         "✅ *Безлимит идей* подарков\n"
         "✅ *Фильтр по бюджету* (бюджетный, средний, премиум)\n"
         "✅ *Сохранение понравившихся идей*\n\n"
-        "Скоро оплата будет доступна через ЮKassa. Следите за обновлениями!\n\n"
+        "Скоро оплата будет доступна. Следите за обновлениями!\n\n"
         "Спасибо, что интересуетесь! 🎁",
         parse_mode="Markdown"
     )
