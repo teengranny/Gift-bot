@@ -41,6 +41,13 @@ def run_flask():
 threading.Thread(target=run_flask, daemon=True).start()
 
 # ============================================================
+# Хранилище для счётчиков и статуса премиум (в памяти)
+# ============================================================
+user_requests = {}      # user_id -> количество использованных бесплатных идей
+user_premium = {}       # user_id -> True/False
+MAX_FREE = 5
+
+# ============================================================
 # БАЗА ПОДАРКОВ
 # ============================================================
 GIFTS_DB = {
@@ -121,15 +128,26 @@ def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
     ])
 
 async def start(update: Update, context) -> None:
+    # При новом старте сбрасываем счётчик пользователя (по желанию)
+    user_id = update.effective_user.id
+    if user_id not in user_requests:
+        user_requests[user_id] = 0
     await update.message.reply_text(
-        "🎁 *Генератор идей подарков*\n\nВыберите категорию, и я подберу идею подарка:",
+        "🎁 *Подарочный гуру*\n\nПривет! Я помогу тебе выбрать подарок.\n"
+        "У тебя есть 5 бесплатных идей. После этого можно купить Премиум за 199 ₽ и пользоваться безлимитом.\n\n"
+        "Выбери категорию:",
         parse_mode="Markdown",
         reply_markup=build_category_keyboard(),
     )
 
 async def help_command(update: Update, context) -> None:
     await update.message.reply_text(
-        "🎁 *Генератор идей подарков*\n\nКоманды:\n/start — показать меню выбора категории\n/help — это сообщение\n\nНажимайте на категорию, чтобы получить случайную идею подарка. Кнопка «Ещё идея» даст новый вариант из той же категории.",
+        "🎁 *Подарочный гуру*\n\n"
+        "Команды:\n"
+        "/start — показать меню выбора категории\n"
+        "/help — это сообщение\n"
+        "/premium — купить безлимит за 199 ₽\n\n"
+        "Бесплатных идей — 5. Премиум даёт безлимит, фильтры и сохранение списка.",
         parse_mode="Markdown",
     )
 
@@ -142,7 +160,7 @@ async def premium(update: Update, context) -> None:
         "✅ *Фильтр по бюджету* (бюджетный, средний, премиум)\n"
         "✅ *Сохранение понравившихся идей*\n\n"
         "Скоро оплата будет доступна. Следите за обновлениями!\n\n"
-        "Спасибо, что интересуетесь! 🎁",
+        "А пока можете продолжать пользоваться бесплатными идеями (осталось их счётчик).",
         parse_mode="Markdown"
     )
 
@@ -150,10 +168,17 @@ async def button_callback(update: Update, context) -> None:
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = update.effective_user.id
+
+    # Проверяем, премиум ли пользователь
+    if user_premium.get(user_id, False):
+        premium_active = True
+    else:
+        premium_active = False
 
     if data == "menu":
         await query.edit_message_text(
-            "🎁 *Генератор идей подарков*\n\nВыберите категорию:",
+            "🎁 *Подарочный гуру*\n\nВыберите категорию:",
             parse_mode="Markdown",
             reply_markup=build_category_keyboard(),
         )
@@ -161,6 +186,25 @@ async def button_callback(update: Update, context) -> None:
 
     if data.startswith("cat:"):
         category = data.split(":", 1)[1]
+
+        # Если не премиум, проверяем лимит
+        if not premium_active:
+            # Получаем текущее количество использованных бесплатных идей
+            count = user_requests.get(user_id, 0)
+            if count >= MAX_FREE:
+                await query.edit_message_text(
+                    "❌ *Лимит бесплатных идей исчерпан!*\n\n"
+                    "У вас было 5 бесплатных идей. Чтобы получать безлимит, оформите Премиум:\n"
+                    "💰 *199 рублей* — навсегда.\n\n"
+                    "Нажмите /premium, чтобы узнать подробности.",
+                    parse_mode="Markdown",
+                    reply_markup=build_category_keyboard(),
+                )
+                return
+            # Увеличиваем счётчик
+            user_requests[user_id] = count + 1
+
+        # Выдаём идею
         gift = get_random_gift(category)
         category_label = CATEGORIES.get(category, category)
         text = f"*Идея подарка — {category_label}*\n\n{format_gift_message(gift)}"
