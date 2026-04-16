@@ -43,8 +43,11 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ============================================================
 # Хранилище для счётчиков и статуса премиум (в памяти)
 # ============================================================
-user_requests = {}      # user_id -> количество использованных бесплатных идей
+from datetime import date
+
+user_requests = {}      # user_id -> количество идей за сегодня
 user_premium = {}       # user_id -> True/False
+user_last_date = {}     # user_id -> дата последнего сброса (YYYY-MM-DD)
 MAX_FREE = 5
 
 # ============================================================
@@ -246,23 +249,29 @@ async def button_callback(update: Update, context) -> None:
 
     if data.startswith("cat:"):
         category = data.split(":", 1)[1]
-
-        # Если не премиум, проверяем лимит
-        if not premium_active:
-            # Получаем текущее количество использованных бесплатных идей
-            count = user_requests.get(user_id, 0)
-            if count >= MAX_FREE:
-                await query.edit_message_text(
-                    "❌ *Лимит бесплатных идей исчерпан!*\n\n"
-                    "У вас было 5 бесплатных идей. Чтобы получать безлимит, оформите Премиум:\n"
-                    "💰 *199 рублей* — навсегда.\n\n"
-                    "Нажмите /premium, чтобы узнать подробности.",
-                    parse_mode="Markdown",
-                    reply_markup=build_category_keyboard(),
-                )
-                return
-            # Увеличиваем счётчик
-            user_requests[user_id] = count + 1
+        
+if not premium_active:
+    today = date.today().isoformat()
+    last = user_last_date.get(user_id)
+    if last != today:
+        # Новый день — сбрасываем счётчик
+        user_requests[user_id] = 0
+        user_last_date[user_id] = today
+    count = user_requests.get(user_id, 0)
+    if count >= MAX_FREE:
+        await query.edit_message_text(
+            "❌ *Лимит бесплатных идей на сегодня исчерпан!*\n\n"
+            "Подписка за *199 ₽* откроет:\n"
+            "✅ 200 идей в день\n"
+            "✅ Фильтры по бюджету и полу\n"
+            "✅ Сохранение списка и экспорт\n\n"
+            "Нажмите /premium, чтобы оформить.",
+            parse_mode="Markdown",
+            reply_markup=build_category_keyboard(),
+        )
+        return
+    # увеличиваем счётчик
+    user_requests[user_id] = count + 1
 
         # Выдаём идею
         gift = get_random_gift(category)
