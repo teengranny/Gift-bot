@@ -128,14 +128,14 @@ def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
     ])
 
 async def start(update: Update, context) -> None:
-    # При новом старте сбрасываем счётчик пользователя (по желанию)
     user_id = update.effective_user.id
     if user_id not in user_requests:
         user_requests[user_id] = 0
     await update.message.reply_text(
-        "🎁 *Подарочный гуру*\n\nПривет! Я помогу тебе выбрать подарок.\n"
-        "У тебя есть 5 бесплатных идей. После этого можно купить Премиум за 199 ₽ и пользоваться безлимитом.\n\n"
-        "Выбери категорию:",
+        "🎁 *Подарочный гуру*\n\n"
+        "Привет! Устал ломать голову над подарками? Я помогу.\n"
+        "5 идей — в подарок от меня. Хочешь ещё? Премиум открывает безлимит за 199 ₽.\n\n"
+        "Просто выбери, кому ищем подарок 👇",
         parse_mode="Markdown",
         reply_markup=build_category_keyboard(),
     )
