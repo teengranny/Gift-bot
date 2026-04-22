@@ -5,6 +5,7 @@
 # Переменные окружения: TELEGRAM_BOT_TOKEN, PROVIDER_TOKEN
 # ============================================================
 
+import uuid
 import logging
 import os
 import random
@@ -278,7 +279,7 @@ async def premium(update: Update, context):
         provider_token=os.environ.get("PROVIDER_TOKEN"),
         currency=currency,
         prices=prices,
-        start_parameter="premium-payment",
+        start_parameter=f"premium_{user_id}_{uuid.uuid4().hex[:8]}",
         need_email=True,
         need_phone_number=True
     )
