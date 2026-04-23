@@ -237,7 +237,7 @@ def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
         if current_filter:
             filter_label = f"🎯 Фильтр: {PRICE_LABELS.get(current_filter, current_filter)}"
         buttons.append([InlineKeyboardButton(filter_label, callback_data="filter")])
-    buttons.append([InlineKeyboardButton("📧 Поддержка", callback_data="support")])
+    buttons.append([InlineKeyboardButton("❗ Поддержка", callback_data="support")])
     return InlineKeyboardMarkup(buttons)
 
 def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
