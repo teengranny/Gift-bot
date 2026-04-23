@@ -108,9 +108,9 @@ MAX_FREE = 5
 ADMIN_ID = 426916872    # Твой Telegram ID
 
 # ============================================================
-# БАЗА ПОДАРКОВ — СЮДА ВСТАВЬ СВОЙ СЛОВАРЬ GIFTS_DB
+# БАЗА ПОДАРКОВ 
 # ============================================================
-    "man": [
+GIFTS_DB = {    "man": [
         {"title": "Умные часы с мониторингом здоровья", "emoji": "⌚", "priceType": "premium", "description": "Отслеживают пульс, сон и калории. Мотивируют больше двигаться.", "ozonLink": "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Набор инструментов в кейсе", "emoji": "🔧", "priceType": "middle", "description": "Упорядочивают инструменты. Выручают при мелком ремонте.", "ozonLink": "https://takprdm.ru/0W944W82VmChQ0C0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F49844802%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Термокружка с подогревом от USB", "emoji": "🥤", "priceType": "budget", "description": "Заряжается от ноутбука. Сохраняет кофе горячим часами.", "ozonLink": "https://takprdm.ru/0W944W82iWCikk40/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F808840619%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJNKvJZ"},
