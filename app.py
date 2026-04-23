@@ -375,7 +375,7 @@ async def button_callback(update: Update, context):
         else:
             text = "❌ Неизвестный фильтр"
         await query.edit_message_text(
-            text + "\n\nТеперь бот будет учитывать твой бюджет.",
+            text + "\n\nТеперь бот будет учитывать ваш бюджет.",
             parse_mode="Markdown",
             reply_markup=get_main_keyboard(user_id)
         )
