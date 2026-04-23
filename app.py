@@ -5,6 +5,7 @@
 # Переменные окружения: TELEGRAM_BOT_TOKEN, PROVIDER_TOKEN
 # ============================================================
 
+from supabase import create_client, Client
 import uuid
 import logging
 import os
@@ -46,48 +47,59 @@ def run_flask():
 threading.Thread(target=run_flask, daemon=True).start()
 
 # ============================================================
-# РАБОТА С БАЗОЙ ДАННЫХ SQLite (постоянное хранение премиума)
+# РАБОТА С БАЗОЙ ДАННЫХ Supabase
 # ============================================================
-DB_PATH = os.path.join(os.path.dirname(__file__), 'premium.db')
+import os
+from supabase import create_client, Client
+
+supabase: Client = create_client(
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("SUPABASE_KEY")
+)
+
+PREMIUM_TABLE = "premium_users"
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS premium_users
-                 (user_id INTEGER PRIMARY KEY)''')
-    conn.commit()
-    conn.close()
+    """Проверка подключения"""
+    try:
+        supabase.table(PREMIUM_TABLE).select("*").limit(1).execute()
+        print("Supabase connected")
+    except Exception as e:
+        print(f"Supabase error: {e}")
 
 def add_premium_user(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO premium_users (user_id) VALUES (?)', (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        supabase.table(PREMIUM_TABLE).upsert({"user_id": user_id}).execute()
+        return True
+    except Exception as e:
+        print(f"Add error: {e}")
+        return False
 
 def remove_premium_user(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('DELETE FROM premium_users WHERE user_id = ?', (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        supabase.table(PREMIUM_TABLE).delete().eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Remove error: {e}")
+        return False
 
 def is_premium_user(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT 1 FROM premium_users WHERE user_id = ?', (user_id,))
-    result = c.fetchone()
-    conn.close()
-    return result is not None
+    try:
+        res = supabase.table(PREMIUM_TABLE).select("*").eq("user_id", user_id).execute()
+        return len(res.data) > 0
+    except Exception as e:
+        print(f"Check error: {e}")
+        return False
 
 def load_premium_users():
-    """Загрузить всех премиум-пользователей в словарь user_premium при старте"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('SELECT user_id FROM premium_users')
-    rows = c.fetchall()
-    conn.close()
-    return {row[0]: True for row in rows}
+    premium_dict = {}
+    try:
+        res = supabase.table(PREMIUM_TABLE).select("*").execute()
+        for item in res.data:
+            premium_dict[item["user_id"]] = True
+    except Exception as e:
+        print(f"Load error: {e}")
+    return premium_dict
 
 # ============================================================
 # Хранилище для счётчиков, дат, премиум-статуса и фильтров
