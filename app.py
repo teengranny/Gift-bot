@@ -11,10 +11,9 @@ import os
 import random
 import asyncio
 import threading
-import sqlite3
 from datetime import date
 
-from flask import Flask, request
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.error import Conflict
 from telegram.ext import (
@@ -58,7 +57,6 @@ supabase: Client = create_client(
 PREMIUM_TABLE = "premium_users"
 
 def init_db():
-    """Проверка подключения"""
     try:
         supabase.table(PREMIUM_TABLE).select("*").limit(1).execute()
         print("Supabase connected")
@@ -102,17 +100,16 @@ def load_premium_users():
 # ============================================================
 # Хранилище для счётчиков, дат, премиум-статуса и фильтров
 # ============================================================
-user_requests = {}      # user_id -> количество идей за сегодня
-user_premium = {}       # user_id -> True/False (загружается из БД)
-user_last_date = {}     # user_id -> дата последнего сброса (YYYY-MM-DD)
-user_filters = {}       # user_id -> 'budget', 'middle', 'premium' или None
+user_requests = {}
+user_premium = {}
+user_last_date = {}
+user_filters = {}
 MAX_FREE = 5
 ADMIN_ID = 426916872    # Твой Telegram ID
 
 # ============================================================
-# БАЗА ПОДАРКОВ 
+# БАЗА ПОДАРКОВ — СЮДА ВСТАВЬ СВОЙ СЛОВАРЬ GIFTS_DB
 # ============================================================
-GIFTS_DB = {
     "man": [
         {"title": "Умные часы с мониторингом здоровья", "emoji": "⌚", "priceType": "premium", "description": "Отслеживают пульс, сон и калории. Мотивируют больше двигаться.", "ozonLink": "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Набор инструментов в кейсе", "emoji": "🔧", "priceType": "middle", "description": "Упорядочивают инструменты. Выручают при мелком ремонте.", "ozonLink": "https://takprdm.ru/0W944W82VmChQ0C0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F49844802%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
@@ -210,6 +207,7 @@ GIFTS_DB = {
         {"title": "Подставка для ног эргономичная", "emoji": "🦶", "priceType": "budget", "description": "Снижает нагрузку на спину. Помогает сохранять правильную позу.", "ozonLink": "https://takprdm.ru/0W944W82VmChudu0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F61336211%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
     ],
 }
+
 PRICE_LABELS = {"budget": "бюджетная", "middle": "средняя", "premium": "премиум"}
 CATEGORIES = {"man": "👔 Мужчине", "woman": "🌸 Женщине", "child": "🧸 Ребёнку", "colleague": "🤝 Коллеге"}
 
@@ -235,12 +233,10 @@ def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
     buttons = [[InlineKeyboardButton(label, callback_data=f"cat:{key}")] for key, label in CATEGORIES.items()]
     if user_premium.get(user_id, False):
         current_filter = user_filters.get(user_id)
+        filter_label = "🎯 Фильтр по бюджету"
         if current_filter:
             filter_label = f"🎯 Фильтр: {PRICE_LABELS.get(current_filter, current_filter)}"
-        else:
-            filter_label = "🎯 Фильтр по бюджету"
         buttons.append([InlineKeyboardButton(filter_label, callback_data="filter")])
-    # Кнопка поддержки для всех пользователей
     buttons.append([InlineKeyboardButton("📞 Поддержка", callback_data="support")])
     return InlineKeyboardMarkup(buttons)
 
@@ -281,7 +277,6 @@ async def premium(update: Update, context):
     description = "Безлимит идей подарков + фильтр по бюджету"
     payload = f"premium_{user_id}"
     currency = "RUB"
-    # цена 19900 копеек = 199 руб (или 8000 для теста)
     prices = [LabeledPrice("Премиум-доступ (30 дней)", 19900)]
     
     await context.bot.send_invoice(
@@ -357,7 +352,7 @@ async def button_callback(update: Update, context):
             [InlineKeyboardButton("↩️ Назад", callback_data="menu")]
         ])
         await query.edit_message_text(
-            "🎯 *Выберите бюджет*:",
+            "🎯 *Выбери бюджет*:",
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -380,7 +375,7 @@ async def button_callback(update: Update, context):
         else:
             text = "❌ Неизвестный фильтр"
         await query.edit_message_text(
-            text + "\n\nТеперь бот будет учитывать ваш бюджет.",
+            text + "\n\nТеперь бот будет учитывать твой бюджет.",
             parse_mode="Markdown",
             reply_markup=get_main_keyboard(user_id)
         )
@@ -388,8 +383,8 @@ async def button_callback(update: Update, context):
 
     if data == "support":
         await query.edit_message_text(
-            "📧 *Связь со мной*\n\n"
-            "Если возникли вопросы или проблемы с оплатой – пишите на почту:\n\n"
+            "📧 *Поддержка*\n\n"
+            "Если возникли вопросы или проблемы с оплатой – пиши на почту:\n\n"
             "[maryaninovan@mail.ru](mailto:maryaninovan@mail.ru)",
             parse_mode="Markdown",
             reply_markup=get_main_keyboard(user_id),
