@@ -172,40 +172,41 @@ def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
     ])
 
 # ============================================================
-# ОБРАБОТЧИКИ КОМАНД
+# ОБРАБОТЧИКИ КОМАНД И КНОПОК
 # ============================================================
 
 async def start(update: Update, context):
     await update.message.reply_text(
         "🎁 *Подарочный гуру*\n\nПривет! Я помогу тебе подобрать отличный подарок.\nВыбери категорию 👇",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(update.effective_user.id),
     )
 
 async def help_command(update: Update, context):
     await update.message.reply_text(
-        "🎁 *Подарочный гуру*\n\nКоманды:\n/start — главное меню\n/help — это сообщение\n/support — связаться с администратором\n\nБезлимит идей — просто нажимай \"Ещё идея\".",
+        "🎁 *Подарочный гуру*\n\nКоманды:\n/start — главное меню\n/help — это сообщение\n\nБезлимит идей — просто нажимай \"Ещё идея\" и пользуйся фильтрами бюджета!",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(update.effective_user.id),
     )
 
-async def support(update: Update, context):
+async def support_command(update: Update, context):
     await update.message.reply_text(
         "📧 *Поддержка*\n\nЕсли возникли вопросы – пишите на почту:\nmaryaninovan@mail.ru",
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
 
-async def button_callback(update: Update, context):
+async def button_handler(update: Update, context):
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = update.effective_user.id
 
     if data == "menu":
         await query.edit_message_text(
-            "🎁 *Подарочный гуру*\n\nВыбери категорию:",
+            "🎁 *Подарочный гуру*\n\nВыбери категорию 👇",
             parse_mode="Markdown",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard(user_id),
         )
         return
 
@@ -213,14 +214,36 @@ async def button_callback(update: Update, context):
         await query.edit_message_text(
             "📧 *Поддержка*\n\nЕсли возникли вопросы – пишите на почту:\nmaryaninovan@mail.ru",
             parse_mode="Markdown",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard(user_id),
             disable_web_page_preview=True
         )
         return
 
+    # Логика работы фильтров бюджета (теперь работают у всех)
+    if data == "filter":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 Бюджетные", callback_data="set_flt:budget")],
+            [InlineKeyboardButton("💵 Средние", callback_data="set_flt:middle")],
+            [InlineKeyboardButton("💎 Премиум", callback_data="set_flt:premium")],
+            [InlineKeyboardButton("❌ Сбросить фильтр", callback_data="set_flt:none")],
+            [InlineKeyboardButton("↩️ Назад", callback_data="menu")]
+        ])
+        await query.edit_message_text("🎯 *Выберите желаемый уровень стоимости:*", parse_mode="Markdown", reply_markup=keyboard)
+        return
+
+    if data.startswith("set_flt:"):
+        flt = data.split(":", 1)[1]
+        if flt == "none":
+            user_filters[user_id] = None
+        else:
+            user_filters[user_id] = flt
+        await query.edit_message_text("✅ Фильтр обновлен!", reply_markup=get_main_keyboard(user_id))
+        return
+
     if data.startswith("cat:"):
         category = data.split(":", 1)[1]
-        gift = get_random_gift(category)
+        price_filter = user_filters.get(user_id)
+        gift = get_random_gift(category, price_filter)
         category_label = CATEGORIES.get(category, category)
         text = f"*Идея подарка — {category_label}*\n\n{format_gift_message(gift)}"
         await query.edit_message_text(
@@ -232,7 +255,7 @@ async def button_callback(update: Update, context):
         return
 
 # ============================================================
-# ЗАПУСК
+# НАСТРОЙКА ЛОГИРОВАНИЯ И НАДЕЖНЫЙ ЗАПУСК БОТА
 # ============================================================
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -248,30 +271,25 @@ async def start_bot():
     # Создаем приложение
     application = Application.builder().token(token).build()
 
-    # Регистрируем обработчики
+    # Регистрируем только существующие обработчики
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("premium", premium_command))
     application.add_handler(CommandHandler("support", support_command))
     application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
     print("Бот успешно инициализирован и запускается...")
 
-    # Внутри асинхронного контекста используем штатный метод
-    # Включаем close_loop=False, чтобы он не ругался на закрытие глобального потока
+    # Включаем бота внутри асинхронного контекста под Python 3.14
     await application.initialize()
     await application.start()
     await application.updater.start_polling(close_loop=False)
     
-    # Держим бота запущенным, пока живет процесс
+    # Бесконечный цикл, удерживающий процесс
     while True:
         await asyncio.sleep(3600)
 
 def main():
     try:
-        # Корректный запуск асинхронного пула для Python 3.11 - 3.14
         asyncio.run(start_bot())
     except (KeyboardInterrupt, SystemExit):
         print("Бот остановлен.")
