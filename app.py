@@ -240,16 +240,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
-    # Проверяем токен
+async def start_bot():
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN не задан")
 
-    # Создаем приложение бота
+    # Создаем приложение
     application = Application.builder().token(token).build()
 
-    # Регистрируем обработчики (команды, кнопки и т.д.)
+    # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("premium", premium_command))
@@ -258,25 +257,24 @@ def main():
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
-    print("Бот запускается...")
+    print("Бот успешно инициализирован и запускается...")
+
+    # Внутри асинхронного контекста используем штатный метод
+    # Включаем close_loop=False, чтобы он не ругался на закрытие глобального потока
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(close_loop=False)
     
-    # ИСПРАВЛЕНИЕ ДЛЯ PYTHON 3.14:
-    # Вместо application.run_polling() используем явный цикл событий asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Запускаем инициализацию, старт и бесконечный цикл удержания
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.updater.start_polling())
-    loop.run_until_complete(application.start())
-    
+    # Держим бота запущенным, пока живет процесс
+    while True:
+        await asyncio.sleep(3600)
+
+def main():
     try:
-        loop.run_forever()
+        # Корректный запуск асинхронного пула для Python 3.11 - 3.14
+        asyncio.run(start_bot())
     except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        loop.run_until_complete(application.stop())
-        loop.run_until_complete(application.shutdown())
+        print("Бот остановлен.")
 
 if __name__ == "__main__":
     main()
