@@ -240,24 +240,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main() -> None:
+def main():
+    # Проверяем токен
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN не задан")
-    
-    # Проверим, что PAYMENT_LINK задан (но не критично)
-    payment_link = os.environ.get("PAYMENT_LINK")
-    if not payment_link:
-        logger.warning("PAYMENT_LINK не задан, кнопка оплаты будет вести на example.com")
 
+    # Создаем приложение бота
     application = Application.builder().token(token).build()
+
+    # Регистрируем обработчики (команды, кнопки и т.д.)
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("support", support))
-    application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(CommandHandler("premium", premium_command))
+    application.add_handler(CommandHandler("support", support_command))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
-    logger.info("Бот запущен...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    print("Бот запускается...")
+    
+    # ИСПРАВЛЕНИЕ ДЛЯ PYTHON 3.14:
+    # Вместо application.run_polling() используем явный цикл событий asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Запускаем инициализацию, старт и бесконечный цикл удержания
+    loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.updater.start_polling())
+    loop.run_until_complete(application.start())
+    
+    try:
+        loop.run_forever()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        loop.run_until_complete(application.stop())
+        loop.run_until_complete(application.shutdown())
 
 if __name__ == "__main__":
     main()
