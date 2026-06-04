@@ -1,11 +1,10 @@
 # ============================================================
-# ГЕНЕРАТОР ИДЕЙ ПОДАРКОВ — TELEGRAM BOT (упрощённая версия)
-# Без Supabase, без лимитов, с внешней ссылкой на оплату.
+# ГЕНЕРАТОР ИДЕЙ ПОДАРКОВ — TELEGRAM BOT
+# Без Supabase, без лимитов, с рабочей логикой фильтров.
 # Запуск: python app.py
-# Требуется: pip install python-telegram-bot==21.10 flask
-# Переменные окружения: TELEGRAM_BOT_TOKEN, PAYMENT_LINK
 # ============================================================
 
+import asyncio
 import logging
 import os
 import random
@@ -31,8 +30,10 @@ def run_flask():
 threading.Thread(target=run_flask, daemon=True).start()
 
 # ============================================================
-# БАЗА ПОДАРКОВ (полная, без изменений)
+# ГЛОБАЛЬНЫЕ СЛОВАРИ И БАЗА ДАННЫХ
 # ============================================================
+user_filters = {}  # Хранилище фильтров бюджета для пользователей
+
 GIFTS_DB = {    "man": [
         {"title": "Умные часы с мониторингом здоровья", "emoji": "⌚", "priceType": "premium", "description": "Отслеживают пульс, сон и калории. Мотивируют больше двигаться.", "ozonLink": "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
         {"title": "Набор инструментов в кейсе", "emoji": "🔧", "priceType": "middle", "description": "Упорядочивают инструменты. Выручают при мелком ремонте.", "ozonLink": "https://takprdm.ru/0W944W82VmChQ0C0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F49844802%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
@@ -138,30 +139,42 @@ CATEGORIES = {
     "colleague": "🤝 Коллеге"
 }
 
-def get_random_gift(category: str) -> dict:
+# ============================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ БОТА
+# ============================================================
+def get_random_gift(category: str, price_filter: str = None) -> dict:
     gifts = GIFTS_DB.get(category, [])
+    if price_filter:
+        gifts = [g for g in gifts if g.get("priceType") == price_filter]
+        
     if not gifts:
-        return {"title": "Скоро добавим идеи", "emoji": "🎁", "description": "Выберите другую категорию."}
+        return {"title": "Идеи закончились или подбираются", "emoji": "🎁", "description": "Попробуйте изменить или сбросить фильтр бюджета!"}
     return random.choice(gifts)
 
 def format_gift_message(gift: dict) -> str:
-    # Можно добавить ценовую категорию, если хотите
     price_label = ""
     if gift.get("priceType") == "budget":
-        price_label = "💰 Бюджетный\n"
+        price_label = "🔹 _Бюджетный вариант_\n"
     elif gift.get("priceType") == "middle":
-        price_label = "💰 Средний\n"
+        price_label = "🔹 _Средний бюджет_\n"
     elif gift.get("priceType") == "premium":
-        price_label = "💰 Премиум\n"
+        price_label = "🔹 _Премиум подарок_\n"
     return f"{gift['emoji']} *{gift['title']}*\n{price_label}\n{gift['description']}"
 
-def get_main_keyboard() -> InlineKeyboardMarkup:
+def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
     buttons = []
     for key, label in CATEGORIES.items():
         buttons.append([InlineKeyboardButton(label, callback_data=f"cat:{key}")])
-    # Кнопка оплаты со ссылкой (внешняя)
+    
+    # Показываем текущий активный фильтр, если он выбран
+    current_flt = user_filters.get(user_id)
+    flt_labels = {"budget": "💰 Бюджетные", "middle": "💵 Средние", "premium": "💎 Премиум"}
+    flt_text = f"🎯 Фильтр: {flt_labels[current_flt]}" if current_flt else "🎯 Фильтр бюджета"
+    
+    buttons.append([InlineKeyboardButton(flt_text, callback_data="filter")])
+    
     payment_url = os.environ.get("PAYMENT_LINK", "https://example.com/pay")
-    buttons.append([InlineKeyboardButton("💳 Оплатить", url=payment_url)])
+    buttons.append([InlineKeyboardButton("💳 Купить Премиум", url=payment_url)])
     buttons.append([InlineKeyboardButton("📧 Поддержка", callback_data="support")])
     return InlineKeyboardMarkup(buttons)
 
@@ -174,19 +187,20 @@ def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
 # ============================================================
 # ОБРАБОТЧИКИ КОМАНД И КНОПОК
 # ============================================================
-
 async def start(update: Update, context):
+    user_id = update.effective_user.id
     await update.message.reply_text(
         "🎁 *Подарочный гуру*\n\nПривет! Я помогу тебе подобрать отличный подарок.\nВыбери категорию 👇",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(update.effective_user.id),
+        reply_markup=get_main_keyboard(user_id),
     )
 
 async def help_command(update: Update, context):
+    user_id = update.effective_user.id
     await update.message.reply_text(
         "🎁 *Подарочный гуру*\n\nКоманды:\n/start — главное меню\n/help — это сообщение\n\nБезлимит идей — просто нажимай \"Ещё идея\" и пользуйся фильтрами бюджета!",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(update.effective_user.id),
+        reply_markup=get_main_keyboard(user_id),
     )
 
 async def support_command(update: Update, context):
@@ -219,7 +233,6 @@ async def button_handler(update: Update, context):
         )
         return
 
-    # Логика работы фильтров бюджета (теперь работают у всех)
     if data == "filter":
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💰 Бюджетные", callback_data="set_flt:budget")],
@@ -237,7 +250,7 @@ async def button_handler(update: Update, context):
             user_filters[user_id] = None
         else:
             user_filters[user_id] = flt
-        await query.edit_message_text("✅ Фильтр обновлен!", reply_markup=get_main_keyboard(user_id))
+        await query.edit_message_text("✅ Фильтр бюджета обновлен!", reply_markup=get_main_keyboard(user_id))
         return
 
     if data.startswith("cat:"):
@@ -257,9 +270,6 @@ async def button_handler(update: Update, context):
 # ============================================================
 # НАСТРОЙКА ЛОГИРОВАНИЯ И НАДЕЖНЫЙ ЗАПУСК БОТА
 # ============================================================
-import asyncio  # Обязательно добавляем этот импорт здесь, чтобы не было NameError!
-import logging
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -274,7 +284,7 @@ async def start_bot():
     # Создаем приложение
     application = Application.builder().token(token).build()
 
-    # Регистрируем только ТЕ обработчики, которые реально есть в коде:
+    # Регистрируем обработчики команд и нажатий
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("support", support_command))
@@ -282,7 +292,7 @@ async def start_bot():
 
     print("Бот успешно инициализирован и запускается...")
 
-    # Включаем бота внутри асинхронного контекста под Python 3.14
+    # Инициализация и запуск в асинхронном контексте под Python 3.14
     await application.initialize()
     await application.start()
     await application.updater.start_polling(close_loop=False)
