@@ -257,6 +257,9 @@ async def button_handler(update: Update, context):
 # ============================================================
 # НАСТРОЙКА ЛОГИРОВАНИЯ И НАДЕЖНЫЙ ЗАПУСК БОТА
 # ============================================================
+import asyncio  # Обязательно добавляем этот импорт здесь, чтобы не было NameError!
+import logging
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -271,7 +274,7 @@ async def start_bot():
     # Создаем приложение
     application = Application.builder().token(token).build()
 
-    # Регистрируем только существующие обработчики
+    # Регистрируем только ТЕ обработчики, которые реально есть в коде:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("support", support_command))
@@ -284,7 +287,7 @@ async def start_bot():
     await application.start()
     await application.updater.start_polling(close_loop=False)
     
-    # Бесконечный цикл, удерживающий процесс
+    # Бесконечный цикл, удерживающий процесс бота живым
     while True:
         await asyncio.sleep(3600)
 
