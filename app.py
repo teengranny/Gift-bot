@@ -1,114 +1,37 @@
 # ============================================================
-# ГЕНЕРАТОР ИДЕЙ ПОДАРКОВ — TELEGRAM BOT
+# ГЕНЕРАТОР ИДЕЙ ПОДАРКОВ — TELEGRAM BOT (упрощённая версия)
+# Без Supabase, без лимитов, с внешней ссылкой на оплату.
 # Запуск: python app.py
-# Требуется: pip install python-telegram-bot==21.10 flask supabase
-# Переменные окружения: TELEGRAM_BOT_TOKEN, PROVIDER_TOKEN, SUPABASE_URL, SUPABASE_KEY
+# Требуется: pip install python-telegram-bot==21.10 flask
+# Переменные окружения: TELEGRAM_BOT_TOKEN, PAYMENT_LINK
 # ============================================================
 
-import uuid
 import logging
 import os
 import random
-import asyncio
 import threading
-from datetime import date
-
 from flask import Flask
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.error import Conflict
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    PreCheckoutQueryHandler,
-    MessageHandler,
-    filters,
-)
-
-from supabase import create_client, Client
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 # ============================================================
-# Flask-сервер для healthcheck (чтобы Render не убивал процесс)
+# Flask-сервер для healthcheck (для Render)
 # ============================================================
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
-def home():
-    return "Bot is running!", 200
-
 @flask_app.route('/health')
 def health():
     return "OK", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host="0.0.0.0", port=port)
+    flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 threading.Thread(target=run_flask, daemon=True).start()
 
 # ============================================================
-# РАБОТА С БАЗОЙ ДАННЫХ Supabase
-# ============================================================
-supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL"),
-    os.environ.get("SUPABASE_KEY")
-)
-
-PREMIUM_TABLE = "premium_users"
-
-def init_db():
-    try:
-        supabase.table(PREMIUM_TABLE).select("*").limit(1).execute()
-        print("Supabase connected")
-    except Exception as e:
-        print(f"Supabase error: {e}")
-
-def add_premium_user(user_id: int):
-    try:
-        supabase.table(PREMIUM_TABLE).upsert({"user_id": user_id}).execute()
-        return True
-    except Exception as e:
-        print(f"Add error: {e}")
-        return False
-
-def remove_premium_user(user_id: int):
-    try:
-        supabase.table(PREMIUM_TABLE).delete().eq("user_id", user_id).execute()
-        return True
-    except Exception as e:
-        print(f"Remove error: {e}")
-        return False
-
-def is_premium_user(user_id: int) -> bool:
-    try:
-        res = supabase.table(PREMIUM_TABLE).select("*").eq("user_id", user_id).execute()
-        return len(res.data) > 0
-    except Exception as e:
-        print(f"Check error: {e}")
-        return False
-
-def load_premium_users():
-    premium_dict = {}
-    try:
-        res = supabase.table(PREMIUM_TABLE).select("*").execute()
-        for item in res.data:
-            premium_dict[item["user_id"]] = True
-    except Exception as e:
-        print(f"Load error: {e}")
-    return premium_dict
-
-# ============================================================
-# Хранилище для счётчиков, дат, премиум-статуса и фильтров
-# ============================================================
-user_requests = {}
-user_premium = {}
-user_last_date = {}
-user_filters = {}
-MAX_FREE = 5
-ADMIN_ID = 426916872    # Твой Telegram ID
-
-# ============================================================
-# БАЗА ПОДАРКОВ 
+# БАЗА ПОДАРКОВ (полная, без изменений)
 # ============================================================
 GIFTS_DB = {    "man": [
         {"title": "Умные часы с мониторингом здоровья", "emoji": "⌚", "priceType": "premium", "description": "Отслеживают пульс, сон и калории. Мотивируют больше двигаться.", "ozonLink": "https://takprdm.ru/0W944W82VmCiW7u0/?redirectTo=https%3A%2F%2Fwww.wildberries.ru%2Fcatalog%2F117603041%2Fdetail.aspx&erid=Y1jgkD6uB6jK1phqkTLTbNJPiD1a"},
@@ -208,35 +131,37 @@ GIFTS_DB = {    "man": [
     ],
 }
 
-PRICE_LABELS = {"budget": "бюджетная", "middle": "средняя", "premium": "премиум"}
-CATEGORIES = {"man": "👔 Мужчине", "woman": "🌸 Женщине", "child": "🧸 Ребёнку", "colleague": "🤝 Коллеге"}
+CATEGORIES = {
+    "man": "👔 Мужчине",
+    "woman": "🌸 Женщине",
+    "child": "🧸 Ребёнку",
+    "colleague": "🤝 Коллеге"
+}
 
-def get_random_gift(category: str, price_filter: str = None) -> dict:
+def get_random_gift(category: str) -> dict:
     gifts = GIFTS_DB.get(category, [])
     if not gifts:
-        return {"title": "Скоро добавим идеи", "emoji": "🎁", "priceType": "", "description": "Выберите другую категорию.", "ozonLink": None}
-    if price_filter:
-        filtered = [g for g in gifts if g.get("priceType") == price_filter]
-        if filtered:
-            gifts = filtered
+        return {"title": "Скоро добавим идеи", "emoji": "🎁", "description": "Выберите другую категорию."}
     return random.choice(gifts)
 
 def format_gift_message(gift: dict) -> str:
-    price_label = PRICE_LABELS.get(gift.get("priceType", ""), "")
-    price_line = f"💰 Стоимость: {price_label}\n" if price_label else ""
-    base = f"{gift['emoji']} *{gift['title']}*\n{price_line}\n{gift['description']}"
-    if gift.get("ozonLink"):
-        base += f"\n\n[Купить →]({gift['ozonLink']})"
-    return base
+    # Можно добавить ценовую категорию, если хотите
+    price_label = ""
+    if gift.get("priceType") == "budget":
+        price_label = "💰 Бюджетный\n"
+    elif gift.get("priceType") == "middle":
+        price_label = "💰 Средний\n"
+    elif gift.get("priceType") == "premium":
+        price_label = "💰 Премиум\n"
+    return f"{gift['emoji']} *{gift['title']}*\n{price_label}\n{gift['description']}"
 
-def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    buttons = [[InlineKeyboardButton(label, callback_data=f"cat:{key}")] for key, label in CATEGORIES.items()]
-    if user_premium.get(user_id, False):
-        current_filter = user_filters.get(user_id)
-        filter_label = "🎯 Фильтр по бюджету"
-        if current_filter:
-            filter_label = f"🎯 Фильтр: {PRICE_LABELS.get(current_filter, current_filter)}"
-        buttons.append([InlineKeyboardButton(filter_label, callback_data="filter")])
+def get_main_keyboard() -> InlineKeyboardMarkup:
+    buttons = []
+    for key, label in CATEGORIES.items():
+        buttons.append([InlineKeyboardButton(label, callback_data=f"cat:{key}")])
+    # Кнопка оплаты со ссылкой (внешняя)
+    payment_url = os.environ.get("PAYMENT_LINK", "https://example.com/pay")
+    buttons.append([InlineKeyboardButton("💳 Оплатить", url=payment_url)])
     buttons.append([InlineKeyboardButton("📧 Поддержка", callback_data="support")])
     return InlineKeyboardMarkup(buttons)
 
@@ -251,85 +176,22 @@ def build_gift_keyboard(category: str) -> InlineKeyboardMarkup:
 # ============================================================
 
 async def start(update: Update, context):
-    user_id = update.effective_user.id
-    if user_id not in user_requests:
-        user_requests[user_id] = 0
-    if user_id not in user_last_date:
-        user_last_date[user_id] = date.today().isoformat()
     await update.message.reply_text(
-        "🎁 *Подарочный гуру*\n\nПривет! 5 идей — в подарок от меня. Хочешь ещё? Премиум за 199 ₽.\n\nВыбери категорию 👇",
+        "🎁 *Подарочный гуру*\n\nПривет! Я помогу тебе подобрать отличный подарок.\nВыбери категорию 👇",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(user_id),
+        reply_markup=get_main_keyboard(),
     )
 
 async def help_command(update: Update, context):
-    user_id = update.effective_user.id
     await update.message.reply_text(
-        "🎁 *Подарочный гуру*\n\nКоманды:\n/start — главное меню\n/help — это сообщение\n/premium — купить безлимит\n/support — связаться с администратором\n\nБесплатно 5 идей в день. Премиум даёт безлимит и фильтр по бюджету.",
+        "🎁 *Подарочный гуру*\n\nКоманды:\n/start — главное меню\n/help — это сообщение\n/support — связаться с администратором\n\nБезлимит идей — просто нажимай \"Ещё идея\".",
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard(user_id),
+        reply_markup=get_main_keyboard(),
     )
-
-async def premium(update: Update, context):
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-    title = "✨ Премиум-доступ ✨"
-    description = "Безлимит идей подарков + фильтр по бюджету"
-    payload = f"premium_{user_id}"
-    currency = "RUB"
-    prices = [LabeledPrice("Премиум-доступ (30 дней)", 19900)]
-    
-    await context.bot.send_invoice(
-        chat_id=chat_id,
-        title=title,
-        description=description,
-        payload=payload,
-        provider_token=os.environ.get("PROVIDER_TOKEN"),
-        currency=currency,
-        prices=prices,
-        start_parameter=f"premium_{user_id}_{uuid.uuid4().hex[:8]}",
-        need_email=True,
-        need_phone_number=True
-    )
-
-async def pre_checkout_handler(update: Update, context):
-    query = update.pre_checkout_query
-    await query.answer(ok=True)
-
-async def successful_payment_handler(update: Update, context):
-    # Telegram вызывает этот хендлер только при успешной оплате, но добавим лог
-    user_id = update.effective_user.id
-    payment = update.message.successful_payment
-    if payment and payment.invoice_payload.startswith("premium_"):
-        add_premium_user(user_id)
-        user_premium[user_id] = True
-        user_requests[user_id] = 0
-        await update.message.reply_text(
-            "✅ *Оплата прошла успешно!*\n\nПремиум-доступ активирован. Спасибо за поддержку! 🎉",
-            parse_mode="Markdown"
-        )
-    else:
-        # Логируем подозрительный вызов
-        logger.warning(f"Strange successful_payment call for user {user_id} without valid payment")
-
-async def activate_premium(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Нет прав.")
-        return
-    try:
-        user_id = int(context.args[0])
-        add_premium_user(user_id)
-        user_premium[user_id] = True
-        user_requests[user_id] = 0
-        await update.message.reply_text(f"✅ Премиум активирован для {user_id}!")
-    except (IndexError, ValueError):
-        await update.message.reply_text("❗ Используйте: /activate ID")
 
 async def support(update: Update, context):
     await update.message.reply_text(
-        "📧 *Поддержка*\n\n"
-        "Если возникли вопросы или проблемы с оплатой – пишите на почту:\n\n"
-       "[maryaninovan@mail.ru](mailto:maryaninovan@mail.ru)",
+        "📧 *Поддержка*\n\nЕсли возникли вопросы – пишите на почту:\nmaryaninovan@mail.ru",
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
@@ -338,87 +200,27 @@ async def button_callback(update: Update, context):
     query = update.callback_query
     await query.answer()
     data = query.data
-    user_id = update.effective_user.id
-    premium_active = user_premium.get(user_id, False)
 
     if data == "menu":
         await query.edit_message_text(
             "🎁 *Подарочный гуру*\n\nВыбери категорию:",
             parse_mode="Markdown",
-            reply_markup=get_main_keyboard(user_id),
-        )
-        return
-
-    if data == "filter":
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💰 Бюджетный (до 1500₽)", callback_data="filter_budget")],
-            [InlineKeyboardButton("💰 Средний (1500-5000₽)", callback_data="filter_middle")],
-            [InlineKeyboardButton("💰 Премиум (от 5000₽)", callback_data="filter_premium")],
-            [InlineKeyboardButton("🚫 Отключить фильтр", callback_data="filter_off")],
-            [InlineKeyboardButton("↩️ Назад", callback_data="menu")]
-        ])
-        await query.edit_message_text(
-            "🎯 *Выбери бюджет*:",
-            parse_mode="Markdown",
-            reply_markup=keyboard
-        )
-        return
-
-    if data.startswith("filter_"):
-        ftype = data.split("_")[1]
-        if ftype == "budget":
-            user_filters[user_id] = 'budget'
-            text = "✅ Установлен бюджетный фильтр (до 1500 ₽)"
-        elif ftype == "middle":
-            user_filters[user_id] = 'middle'
-            text = "✅ Установлен средний фильтр (1500-5000 ₽)"
-        elif ftype == "premium":
-            user_filters[user_id] = 'premium'
-            text = "✅ Установлен премиум фильтр (от 5000 ₽)"
-        elif ftype == "off":
-            user_filters[user_id] = None
-            text = "✅ Фильтр отключён"
-        else:
-            text = "❌ Неизвестный фильтр"
-        await query.edit_message_text(
-            text + "\n\nТеперь бот будет учитывать ваш бюджет.",
-            parse_mode="Markdown",
-            reply_markup=get_main_keyboard(user_id)
+            reply_markup=get_main_keyboard(),
         )
         return
 
     if data == "support":
         await query.edit_message_text(
-            "📧 *Поддержка*\n\n"
-            "Если возникли вопросы или проблемы с оплатой – пиши на почту:\n\n"
-            "[maryaninovan@mail.ru](mailto:maryaninovan@mail.ru)",
+            "📧 *Поддержка*\n\nЕсли возникли вопросы – пишите на почту:\nmaryaninovan@mail.ru",
             parse_mode="Markdown",
-            reply_markup=get_main_keyboard(user_id),
+            reply_markup=get_main_keyboard(),
             disable_web_page_preview=True
         )
         return
 
     if data.startswith("cat:"):
         category = data.split(":", 1)[1]
-        if not premium_active:
-            today = date.today().isoformat()
-            last = user_last_date.get(user_id)
-            if last != today:
-                user_requests[user_id] = 0
-                user_last_date[user_id] = today
-            count = user_requests.get(user_id, 0)
-            if count >= MAX_FREE:
-                await query.edit_message_text(
-                    "❌ *Лимит бесплатных идей на сегодня исчерпан!*\n\nОформи премиум за 199 ₽: /premium",
-                    parse_mode="Markdown",
-                    reply_markup=get_main_keyboard(user_id),
-                )
-                return
-            user_requests[user_id] = count + 1
-        price_filter = user_filters.get(user_id) if premium_active else None
-        if price_filter not in ('budget', 'middle', 'premium'):
-            price_filter = None
-        gift = get_random_gift(category, price_filter)
+        gift = get_random_gift(category)
         category_label = CATEGORIES.get(category, category)
         text = f"*Идея подарка — {category_label}*\n\n{format_gift_message(gift)}"
         await query.edit_message_text(
@@ -429,12 +231,6 @@ async def button_callback(update: Update, context):
         )
         return
 
-async def error_handler(update: object, context):
-    if isinstance(context.error, Conflict):
-        logger.warning("Conflict: another bot instance is running with this token.")
-    else:
-        logger.error("Unhandled error: %s", context.error, exc_info=context.error)
-
 # ============================================================
 # ЗАПУСК
 # ============================================================
@@ -442,45 +238,26 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 def main() -> None:
-    init_db()
-    global user_premium
-    user_premium = load_premium_users()
-
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN not set")
-    provider_token = os.environ.get("PROVIDER_TOKEN")
-    if not provider_token:
-        raise RuntimeError("PROVIDER_TOKEN not set")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN не задан")
+    
+    # Проверим, что PAYMENT_LINK задан (но не критично)
+    payment_link = os.environ.get("PAYMENT_LINK")
+    if not payment_link:
+        logger.warning("PAYMENT_LINK не задан, кнопка оплаты будет вести на example.com")
 
     application = Application.builder().token(token).build()
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("premium", premium))
-    application.add_handler(CommandHandler("activate", activate_premium))
     application.add_handler(CommandHandler("support", support))
-    application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(CallbackQueryHandler(button_callback))
-    application.add_error_handler(error_handler)
 
-    logger.info("Bot is starting...")
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-    )
+    logger.info("Бот запущен...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
