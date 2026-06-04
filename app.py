@@ -3,7 +3,7 @@
 # Без Supabase, без лимитов, с внешней ссылкой на оплату.
 # Запуск: python app.py
 # Требуется: pip install python-telegram-bot==21.10 flask
-# Переменные окружения: BOT_TOKEN, PAYMENT_LINK
+# Переменные окружения: TELEGRAM_BOT_TOKEN, PAYMENT_LINK
 # ============================================================
 
 import logging
